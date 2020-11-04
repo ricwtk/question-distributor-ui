@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Question distributor</title>
+    <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/MaterialDesign-Webfont/5.8.55/css/materialdesignicons.min.css" integrity="sha512-x96qcyADhiw/CZY7QLOo7dB8i/REOEHZDhNfoDuJlyQ+yZzhdy91eAa4EkO7g3egt8obvLeJPoUKEKu5C5JYjA==" crossorigin="anonymous" />
+  </head>
+  <body>
+    <div id="app" class="w-screen h-screen bg-gray-200">
+      <div class="container mx-auto flex bg-white min-h-screen flex-col">
+        <div class="flex flex-row items-center text-white text-xl bg-teal-600 px-3 py-3 sticky">
+          <div class="">{{ settings.assessmentName || placeholder.assessmentName }}</div>
+          <div class="flex-grow text-center">{{ settings.studentId || placeholder.studentId }}</div>
+          <button class="mdi mdi-progress-download select-none cursor-pointer rounded-full h-8 w-8 flex items-center justify-center hover:bg-teal-500" title="load other" @click="modal.login=!modal.login"></button>
+        </div>
+        <object class="flex-grow" :data="urlPdf" type="application/pdf"></object>
+      </div>
+
+      <div class="z-10 fixed top-0 left-0 w-screen h-screen bg-gray-500 bg-opacity-75 py-5 flex items-center justify-center transition-opacity duration-100 ease-in-out" :class="{'opacity-100': modal.login, 'visible': modal.login, 'opacity-0': !modal.login, 'invisible': !modal.login}">
+        <div class="bg-white px-5 py-5 rounded-md flex flex-col">
+          <div class="flex flex-row text-gray-800 font-light text-xl pb-5">
+            <div class="flex-grow">Login to get questions</div>
+            <!-- <div class="mdi mdi-close select-none cursor-pointer rounded-full h-8 w-8 flex items-center justify-center hover:bg-gray-200"></div> -->
+          </div>
+          <div class="grid grid-cols-3 gap-3 items-center">
+            <div class="col-span-1 text-right">Assessment code:</div>
+            <input type="text" class="col-span-2 border py-2 px-2" :class="{ 'border-red-600': alert.assessmentCode }" :placeholder="placeholder.assessmentCode" v-model="settings.assessmentCode"/>
+            <div class="col-span-1 text-right">Student ID:</div>
+            <input type="text" class="col-span-2 border py-2 px-2" :class="{ 'border-red-600': alert.studentId }" :placeholder="placeholder.studentId" v-model="settings.studentId"/>
+            <div class="col-span-1 text-right">Passcode:</div>
+            <input type="text" class="col-span-2 border py-2 px-2" :class="{ 'border-red-600': alert.passCode }" :placeholder="placeholder.passCode" v-model="settings.passCode"/>
+          </div>
+          <div class="text-red-600 border-red-600 border-l-8 px-2 py-2 text-center mt-2 bg-gray-200" :class="{ 'invisible': errorMessage == '' }">{{ errorMessage }}</div>
+          <div class="flex flex-row justify-end pt-2">
+            <button @click="requestQuestions" class="border rounded-md uppercase text-center px-2 py-2 text-white font-normal bg-teal-600 hover:shadow-md focus:shadow-md mx-2">Request</button>
+            <button @click="modal.login=false" class="border rounded-md uppercase text-center px-2 py-2 text-white font-normal bg-gray-500 hover:shadow-md focus:shadow-md">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="z-10 fixed top-0 left-0 w-screen h-screen bg-gray-500 bg-opacity-75 py-5 flex items-center justify-center" :class="{'visible': modal.loading, 'invisible': !modal.loading}">
+        <div class="mdi mdi-loading animate-spin text-6xl"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script> -->
+    <script>
+      let vm = new Vue({
+        el: "#app",
+        data: {
+          questionSource: "https://us-central1-exampaperdistributor.cloudfunctions.net/getquestion",
+          // questionSource: "//localhost:8080",
+          modal: {
+            login: true,
+            loading: false
+          },
+          placeholder: {
+            assessmentName: "asdicd",
+            assessmentCode: "aiciq123",
+            studentId: "83145241",
+            passCode: "83jasui3"
+          },
+          settings: {
+            assessmentName: "",
+            assessmentCode: "",
+            studentId: "",
+            passCode: ""
+          },
+          alert: {
+            assessmentCode: false,
+            studentId: false,
+            passCode: false
+          },
+          errorMessage: "",
+          urlPdf: null
+        },
+        methods: {
+          requestQuestions: function () {
+            let proceed = true;
+            this.errorMessage = "";
+            Object.keys(this.alert).forEach(k => {
+              this.alert[k] = this.settings[k] == '';
+              if (this.alert[k]) { 
+                proceed = false; 
+                this.errorMessage = "All fields must not be empty."
+              }
+            });
+            if (!proceed) { return ; }
+            this.modal.login = false;
+            this.modal.loading = true;
+            let req = new Request(this.questionSource, {
+              method: 'POST',
+              body: JSON.stringify(this.settings)
+            });
+            fetch(req).then(res => {
+              if (res.status == 404) { throw res.text(); }
+              this.settings.assessmentName = res.headers.get('Assessment-Name');
+              return res.blob();  
+            }).then(res => {
+              this.urlPdf = URL.createObjectURL(res);
+            }).then(() => { 
+              this.modal.loading = false; 
+            }).catch(err => {
+              err.then((res) => {
+                this.modal.login = true;
+                console.log(res);
+                this.errorMessage = res;
+                this.modal.loading = false;
+              });
+            });
+          }
+        }
+      })
+    </script>
+  </body>
+</html>
